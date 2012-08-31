@@ -1,0 +1,243 @@
+#!/usr/bin/python
+
+# Description: Check-MK plugin for monitoring UPS managed by apcupsd
+# File: apcupsd
+# Version: 1.0
+# Author: Michal Skalski <michal@skalski.org>
+
+# Example output from agent:
+# <<<apcupsd>>>
+# APC       001,043,1061
+# DATE      2012-08-31 12:29:23 +0200  
+# HOSTNAME  localhost
+# VERSION   3.14.10 (13 September 2011) debian
+# UPSNAME   localhost
+# CABLE     USB Cable
+# DRIVER    USB UPS Driver
+# UPSMODE   Stand Alone
+# STARTTIME 2012-08-23 16:54:48 +0200  
+# MODEL     Smart-UPS 2200 RM 
+# STATUS    ONLINE 
+# LINEV     228.9 Volts
+# LOADPCT    39.6 Percent Load Capacity
+# BCHARGE   100.0 Percent
+# TIMELEFT   27.0 Minutes
+# MBATTCHG  5 Percent
+# MINTIMEL  3 Minutes
+# MAXTIME   0 Seconds
+# OUTPUTV   228.9 Volts
+# SENSE     High
+# DWAKE     -01 Seconds
+# DSHUTD    360 Seconds
+# LOTRANS   208.0 Volts
+# HITRANS   253.0 Volts
+# RETPCT    015.0 Percent
+# ITEMP     22.9 C Internal
+# ALARMDEL  30 seconds
+# BATTV     54.5 Volts
+# LINEFREQ  50.0 Hz
+# LASTXFER  Automatic or explicit self test
+# NUMXFERS  0
+# TONBATT   0 seconds
+# CUMONBATT 0 seconds
+# XOFFBATT  N/A
+# SELFTEST  NO
+# STESTI    14 days
+# STATFLAG  0x07000008 Status Flag
+# MANDATE   2008-10-25
+# SERIALNO  JS0843021664
+# BATTDATE  2008-10-25
+# NOMOUTV   230 Volts
+# NOMBATTV   48.0 Volts
+# FIRMWARE  665.6.I USB FW:7.3
+# END APC   2012-08-31 12:29:24 +0200  
+
+# set default value of variable (user can override in main.mk)
+apcupsd_temp_default_values = (30, 35, 0, 60) 
+apcupsd_bcharge_default_values = (80, 30)
+apcupsd_timeleft_default_values = (20, 10, 0, 60)
+apcupsd_bvoltage_default_values = (20, 15, 0 ,60)
+apcupsd_iovoltage_default_values = (220, 210, 0, 240)
+apcupsd_load_default_values = (50, 80)
+
+# the inventory function
+def inventory_apcupsd(checkname,info):
+    if len(info) > 0:
+        for line in info:
+            #on server
+            if line[0] == "MODEL":
+               model = ' '.join(line[1:])
+        try:
+            model
+        except:
+            for line in info:
+                #on client
+                if line[0] == "DRIVER":
+                    model = ' '.join(line[1:])
+        for line in info:
+            if checkname == "apcupsd.temp" and line[0] == "ITEMP":
+                return [(model, "apcupsd_temp_default_values")]
+            if checkname == "apcupsd.bcharge" and line[0] == "BCHARGE":
+                return [(model, "apcupsd_bcharge_default_values")]
+            if checkname == "apcupsd.timeleft" and line[0] == "TIMELEFT":
+                return [(model, "apcupsd_timeleft_default_values")]
+            if checkname == "apcupsd.bvoltage" and line[0] == "BATTV":
+                return [(model, "apcupsd_bvoltage_default_values")]
+            if checkname == "apcupsd.involtage" and line[0] == "LINEV":
+                return [(model, "apcupsd_iovoltage_default_values")]
+            if checkname == "apcupsd.outvoltage" and line[0] == "OUTPUTV":
+                return [(model, "apcupsd_iovoltage_default_values")]
+            if checkname == "apcupsd.load" and line[0] == "LOADPCT":
+                return [(model, "apcupsd_load_default_values")]
+            if checkname == "apcupsd.status" and line[0] == "STATUS":
+                return [(model, None)]
+
+# Internal temperature
+def check_apcupsd_temp(item, params, info):
+    # unpack check parameters
+    warn, crit, mmin, mmax  = params
+    # loop over all lines
+    for line in info:
+       #is this our line?
+       if line[0] == "ITEMP":
+          celsius = float(line[1])
+          perfdata = [ ("itemp", celsius, warn, crit, mmin, mmax) ]
+          if celsius > crit:
+             return (2, "CRITICAL - Internal temperature is %.1fC" % celsius, perfdata)
+          elif celsius > warn:
+             return (1, "WARNING - Internal temperature is %.1fC" % celsius, perfdata)
+          else:
+             return (0, "OK - Internal temperature is %dC" % celsius, perfdata)
+    return (3, "UNKNOWN - not found in agent output")
+
+# Battery charge
+def check_apcupsd_bcharge(item,params,info):
+    warn, crit = params
+    for line in info:
+        if line[0] == "BCHARGE":
+            charge = savefloat(line[1])
+            perfdata = [ ("bcharge", charge, warn, crit)]
+            if charge < crit:
+                return (2, "CRITICAL - Battery charge is %d%%" % charge, perfdata)
+            elif charge < warn:
+                return (1, "WARNIG - Battery charge is %d%%" % charge, perfdata)
+            else:
+                return (0, "OK - Battery charge is %d%%" % charge, perfdata)
+ 
+    return (3, "UNKNOWN - not found in agent output")
+
+
+# Time left
+def check_apcupsd_timeleft(item,params,info):
+    warn, crit, mmin, mmax = params
+    for line in info:
+        if line[0] == "TIMELEFT":
+            timeleft = savefloat(line[1])
+            perfdata = [ ("tleft", timeleft, warn, crit, mmin, mmax)]
+            if timeleft < crit:
+                return (2, "CRITICAL - Remaining runtime on battery: %d minutes" % timeleft, perfdata)
+            elif timeleft < warn:
+                return (1, "WARNIG - Remaining runtime on battery: %d minutes" % timeleft, perfdata)
+            else:
+                return (0, "OK - Remaining runtime on battery: %d minutes" % timeleft, perfdata)
+
+    return (3, "UNKNOWN - not found in agent output")
+
+# Battery voltage
+def check_apcupsd_bvoltage(item,params,info):
+    warn, crit, mmin, mmax = params
+    for line in info:
+        if line[0] == "BATTV":
+            battv = savefloat(line[1])
+            perfdata = [ ("bvoltage", battv, warn, crit, mmin, mmax)]
+            if battv < crit:
+                return (2, "CRITICAL - Battery voltage: %.1fV" % battv, perfdata)
+            elif battv < warn:
+                return (1, "WARNIG - Batery voltage: %.1fV" % battv, perfdata)
+            else:
+                return (0, "OK - Battery voltage: %.1fV" % battv, perfdata)
+
+    return (3, "UNKNOWN - not found in agent output")
+
+
+# Input voltage
+def check_apcupsd_involtage(item,params,info):
+    warn, crit, mmin, mmax = params
+    for line in info:
+        if line[0] == "LINEV":
+            inv = savefloat(line[1])
+            perfdata = [ ("involtage", inv, warn, crit, mmin, mmax)]
+            if inv < crit:
+                return (2, "CRITICAL - Input line voltage: %.1fV" % inv, perfdata)
+            elif inv < warn:
+                return (1, "WARNIG - Input line voltage: %.1fV" % inv, perfdata)
+            else:
+                return (0, "OK - Input line voltage: %.1fV" % inv, perfdata)
+
+    return (3, "UNKNOWN - not found in agent output")
+
+# Output voltage
+def check_apcupsd_outvoltage(item,params,info):
+    warn, crit, mmin, mmax = params
+    for line in info:
+        if line[0] == "LINEV":
+            outv = savefloat(line[1])
+            perfdata = [ ("outvoltage", outv, warn, crit, mmin, mmax)]
+            if outv < crit:
+                return (2, "CRITICAL - Output voltage: %.1fV" % outv, perfdata)
+            elif outv < warn:
+                return (1, "WARNIG - Output voltage: %.1fV" % outv, perfdata)
+            else:
+                return (0, "OK - Output voltage: %.1fV" % outv, perfdata)
+
+    return (3, "UNKNOWN - not found in agent output")
+
+# Load capacity
+def check_apcupsd_load(item, params, info):
+    # unpack check parameters
+    warn, crit = params
+    # loop over all lines
+    for line in info:
+       #is this our line?
+       if line[0] == "LOADPCT":
+          load = float(line[1])
+          perfdata = [ ("lcapacity", load, warn, crit) ]
+          if load > crit:
+             return (2, "CRITICAL - Load capacity is %d%%" % load, perfdata)
+          elif load > warn:
+             return (1, "WARNING - Load capacity is %d%%" % load, perfdata)
+          else:
+             return (0, "OK - Load capacity is %d%%" % load, perfdata)
+    return (3, "UNKNOWN - not found in agent output")
+
+# Status
+def check_apcupsd_status(item, params, info):
+    # loop over all lines
+    for line in info:
+       #is this our line?
+       if line[0] == "STATUS":
+          status = line[1]
+          fullstatus = ' '.join(line[1:])
+          if status !=  "ONLINE":
+             return (1, "WARNING - Status: %s" % fullstatus)
+          else:
+              return (0, "OK - Status: %s" % fullstatus)
+    return (3, "UNKNOWN - not found in agent output")
+
+# declare the check to Check_MK
+check_info['apcupsd.temp'] = \
+        (check_apcupsd_temp, "UPS %s internal temperature", 1, lambda info: inventory_apcupsd("apcupsd.temp", info))
+check_info['apcupsd.bcharge'] = \
+        (check_apcupsd_bcharge, "UPS %s battery charge", 1, lambda info: inventory_apcupsd("apcupsd.bcharge", info))
+check_info['apcupsd.timeleft'] = \
+        (check_apcupsd_timeleft, "UPS %s time remaining ", 1, lambda info: inventory_apcupsd("apcupsd.timeleft", info))
+check_info['apcupsd.bvoltage'] = \
+        (check_apcupsd_bvoltage, "UPS %s battery voltage", 1, lambda info: inventory_apcupsd("apcupsd.bvoltage", info))
+check_info['apcupsd.involtage'] = \
+        (check_apcupsd_involtage, "UPS %s input voltage", 1, lambda info: inventory_apcupsd("apcupsd.involtage", info))
+check_info['apcupsd.outvoltage'] = \
+        (check_apcupsd_outvoltage, "UPS %s output voltage", 1, lambda info: inventory_apcupsd("apcupsd.outvoltage", info))
+check_info['apcupsd.load'] = \
+        (check_apcupsd_load, "UPS %s capacity load", 1, lambda info: inventory_apcupsd("apcupsd.load", info))
+check_info['apcupsd.status'] = \
+        (check_apcupsd_status, "UPS %s status", 0, lambda info: inventory_apcupsd("apcupsd.status", info))

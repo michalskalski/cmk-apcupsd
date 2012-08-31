@@ -1,0 +1,24 @@
+title: Check status of UPS monitored by apcupsd
+agents: linux
+author: Michal Skalski <michal@skalski.org>
+license: GPL
+distribution: check_mk
+description:
+ This check monitor battery voltage returned by {apcaccess}. 
+
+ This check uses information provided by the Check_MK linux agent which are
+ available when the agent has been extended with the {apcupsd} agent plugin
+ and {apcupsd} application has been instaled and configured on monitored host.
+
+ 
+ Warning, Critical, MIN and MAX levels can be set using {apcupsd_bvoltage_default_values}.
+
+item:
+ UPS model and monitored value. On server (master) ups model is read from MODEL,
+ on client (slave) from DRIVER
+
+perfdata:
+ Battery voltage.
+
+inventory:
+ Supported.
