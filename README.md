@@ -24,12 +24,12 @@ Requirements
 2. [Apcupsd](http://www.apcupsd.org/)
 
 Installation
-_________
+-----------
 
 1. Dowload mpk file on host where check_mk is installed and run:
-   
+   ```
    check_mk -P install cmk-apcupsd-[VERSION].mpk
-
+   ```
 2. On host which run apcupsd install check_mk_agent, and put agents/plugins/apcupsd from this repo in check_mk_agent plugins directory (/usr/lib/check_mk_agent/plugins/)
 3. Rescan services for monitored host
 
