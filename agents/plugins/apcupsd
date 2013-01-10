@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if ! command -v apcacces > /dev/null 2>&1
+if  command -v apcaccess > /dev/null 2>&1
 then
 echo '<<<apcupsd>>>'
 apcaccess status | sed 's/://'
