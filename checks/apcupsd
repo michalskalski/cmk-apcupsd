@@ -180,7 +180,7 @@ def check_apcupsd_involtage(item,params,info):
 def check_apcupsd_outvoltage(item,params,info):
     warn, crit, mmin, mmax = params
     for line in info:
-        if line[0] == "LINEV":
+        if line[0] == "OUTPUTV":
             outv = savefloat(line[1])
             perfdata = [ ("outvoltage", outv, warn, crit, mmin, mmax)]
             if outv < crit:
